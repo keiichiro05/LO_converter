@@ -15,6 +15,7 @@ if target_file:
     sku_map = dict(zip(master_df['SKU-LIST ORDER'], master_df['SKU TO BE']))
     lka_map = dict(zip(master_df['ship_to'], master_df['CUST_NAME']))
 
+    target['YEAR'] = pd.to_datetime(target['po_creation_Date']).dt.year.astype(int).astype(str)
 
     # Load target
     target = pd.read_excel(target_file)
@@ -32,7 +33,7 @@ if target_file:
         'October': 'OCT', 'November': 'NOV', 'December': 'DEC'
     }
     target['MONTH'] = pd.to_datetime(target['po_creation_Date']).dt.strftime('%B').map(month_map)
-    target['YEAR'] = pd.to_datetime(target['po_creation_Date']).dt.year.astype(str)
+    target['YEAR'] = pd.to_datetime(target['po_creation_Date']).dt.year.astype(int).astype(str)
 
     # Klasifikasi SKU
     def classify_group_sku(desc):
