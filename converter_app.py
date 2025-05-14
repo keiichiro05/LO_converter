@@ -34,7 +34,13 @@ if target_file:
     }
     target['MONTH'] = pd.to_datetime(target['po_creation_Date']).dt.strftime('%B').map(month_map)
     # Konversi Tahun
-    target['YEAR'] = pd.to_datetime(target['po_creation_Date']).dt.year.astype(int).astype(str)
+    # Pastikan kolom 'po_creation_Date' diparse sebagai tanggal
+    target['po_creation_Date'] = pd.to_datetime(target['po_creation_Date'], errors='coerce')
+
+# Konversi tahun
+    target['YEAR'] = target['po_creation_Date'].dt.year.astype(int).astype(str)
+
+# Jika Anda ingin menghapus bagian desimal seperti sebelumnya
     target['YEAR'] = target['YEAR'].str.split('.').str[0]
 
     # Klasifikasi SKU
