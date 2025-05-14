@@ -4,17 +4,17 @@ from io import BytesIO
 
 st.title("Excel File Converter")
 
-# Upload master file
-master_file = st.file_uploader("Upload file master.xlsx", type=["xlsx"])
+# Upload file List Order
 target_file = st.file_uploader("Upload file List Order.xlsx", type=["xlsx"])
 
-if master_file and target_file:
-    # Load master
-    # === Langsung load master dari lokal ===
-master_df = pd.read_excel("master.xlsx")  # Pastikan file ini ada di folder yang sama
-group_map = dict(zip(master_df['GROUP'], master_df['GROUP TO BE']))
-sku_map = dict(zip(master_df['SKU-LIST ORDER'], master_df['SKU TO BE']))
-lka_map = dict(zip(master_df['ship_to'], master_df['CUST_NAME']))
+if target_file:
+    # Load master dari GitHub raw (bisa diganti ke 'master.xlsx' jika lokal)
+    master_url = "https://raw.githubusercontent.com/keiichiro05/LO_converter/main/master.xlsx"
+    master_df = pd.read_excel(master_url)
+
+    group_map = dict(zip(master_df['GROUP'], master_df['GROUP TO BE']))
+    sku_map = dict(zip(master_df['SKU-LIST ORDER'], master_df['SKU TO BE']))
+    lka_map = dict(zip(master_df['ship_to'], master_df['CUST_NAME']))
 
     # Load target
     target = pd.read_excel(target_file)
@@ -80,6 +80,6 @@ lka_map = dict(zip(master_df['ship_to'], master_df['CUST_NAME']))
     st.download_button(
         label="⬇️ Download Hasil Excel",
         data=output_buffer,
-        file_name="raw_4.xlsx",
+        file_name="RAW.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
