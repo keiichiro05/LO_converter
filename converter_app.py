@@ -19,8 +19,6 @@ if target_file:
 
         target = pd.read_excel(target_file)
 
-        target['YEAR'] = pd.to_datetime(target['po_creation_Date']).dt.year.astype(int).astype(str)
-
         # Mapping
         target['GROUP TO BE'] = target['group'].map(group_map)
         target['SKU TO BE'] = target['material_desc'].map(sku_map)
@@ -34,7 +32,7 @@ if target_file:
             'October': 'OCT', 'November': 'NOV', 'December': 'DEC'
         }
         target['MONTH'] = pd.to_datetime(target['po_creation_Date']).dt.strftime('%B').map(month_map)
-        target['YEAR'] = pd.to_datetime(target['po_creation_Date']).dt.year.astype(int).astype(str)
+        target['YEAR'] = pd.to_datetime(target['po_creation_Date']).dt.year.astype(str)
 
         # Klasifikasi SKU
         def classify_group_sku(desc):
