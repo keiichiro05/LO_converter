@@ -34,9 +34,8 @@ if target_file:
     }
     target['MONTH'] = pd.to_datetime(target['po_creation_Date']).dt.strftime('%B').map(month_map)
     # Konversi Tahun
-target['YEAR'] = pd.to_datetime(target['po_creation_Date']).dt.year.astype(int).astype(str)
-target['YEAR'] = target['YEAR'].str.split('.').str[0]
-str)
+    target['YEAR'] = pd.to_datetime(target['po_creation_Date']).dt.year.astype(int).astype(str)
+    target['YEAR'] = target['YEAR'].str.split('.').str[0]
 
     # Klasifikasi SKU
     def classify_group_sku(desc):
