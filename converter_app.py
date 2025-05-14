@@ -9,7 +9,7 @@ target_file = st.file_uploader("Upload file List Order.xlsx", type=["xlsx"])
 
 if target_file:
     # Load master dari GitHub raw (bisa diganti ke 'master.xlsx' jika lokal)
-    master_url = "https://raw.githubusercontent.com/keiichiro05/LO_converter/main/master.xlsx"
+    master_df = pd.read_excel("https://raw.githubusercontent.com/keiichiro05/LO_converter/main/master.xlsx")
     master_df = pd.read_excel(master_url)
 
     group_map = dict(zip(master_df['GROUP'], master_df['GROUP TO BE']))
