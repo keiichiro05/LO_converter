@@ -70,6 +70,10 @@ if target_file:
     output['Group SKU'] = target['Group SKU']
     output['Region'] = target['region_ops']
     output['DC'] = target['dc_name_sl_forecast']
+    output['PO'] = target['po_qty_cap']
+    output['DO'] = target['do_qty_nett']
+    output['reject_code'] = target['reject_code']
+    output['sap_rejection'] = target['sap_rejection']
 
     # Export to Excel
     output_buffer = BytesIO()
