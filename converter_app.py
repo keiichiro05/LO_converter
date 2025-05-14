@@ -10,10 +10,11 @@ target_file = st.file_uploader("Upload file List Order.xlsx", type=["xlsx"])
 
 if master_file and target_file:
     # Load master
-    master_df = pd.read_excel(master_file)
-    group_map = dict(zip(master_df['GROUP'], master_df['GROUP TO BE']))
-    sku_map = dict(zip(master_df['SKU-LIST ORDER'], master_df['SKU TO BE']))
-    lka_map = dict(zip(master_df['ship_to'], master_df['CUST_NAME']))
+    # === Langsung load master dari lokal ===
+master_df = pd.read_excel("master.xlsx")  # Pastikan file ini ada di folder yang sama
+group_map = dict(zip(master_df['GROUP'], master_df['GROUP TO BE']))
+sku_map = dict(zip(master_df['SKU-LIST ORDER'], master_df['SKU TO BE']))
+lka_map = dict(zip(master_df['ship_to'], master_df['CUST_NAME']))
 
     # Load target
     target = pd.read_excel(target_file)
