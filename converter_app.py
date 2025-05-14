@@ -14,9 +14,7 @@ if target_file:
     group_map = dict(zip(master_df['GROUP'], master_df['GROUP TO BE']))
     sku_map = dict(zip(master_df['SKU-LIST ORDER'], master_df['SKU TO BE']))
     lka_map = dict(zip(master_df['ship_to'], master_df['CUST_NAME']))
-
-    target['YEAR'] = pd.to_datetime(target['po_creation_Date']).dt.year.astype(int).astype(str)
-
+    
     # Load target
     target = pd.read_excel(target_file)
 
@@ -33,15 +31,7 @@ if target_file:
         'October': 'OCT', 'November': 'NOV', 'December': 'DEC'
     }
     target['MONTH'] = pd.to_datetime(target['po_creation_Date']).dt.strftime('%B').map(month_map)
-    # Konversi Tahun
-    # Pastikan kolom 'po_creation_Date' diparse sebagai tanggal
-    target['po_creation_Date'] = pd.to_datetime(target['po_creation_Date'], errors='coerce')
-
-# Konversi tahun
-    target['YEAR'] = target['po_creation_Date'].dt.year.astype(int).astype(str)
-
-# Jika Anda ingin menghapus bagian desimal seperti sebelumnya
-    target['YEAR'] = target['YEAR'].str.split('.').str[0]
+    target['YEAR'] = pd.to_datetime(target['po_creation_Date']).dt.year.astype(str)
 
     # Klasifikasi SKU
     def classify_group_sku(desc):
@@ -79,10 +69,6 @@ if target_file:
     output['Group SKU'] = target['Group SKU']
     output['Region'] = target['region_ops']
     output['DC'] = target['dc_name_sl_forecast']
-    output['PO'] = target['po_qty_cap']
-    output['DO'] = target['do_qty_nett']
-    output['reject_code'] = target['reject_code']
-    output['sap_rejection'] = target['sap_rejection']
 
     # Export to Excel
     output_buffer = BytesIO()
