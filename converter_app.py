@@ -4,18 +4,58 @@ from io import BytesIO
 
 st.title("Excel/CSV File Converter for List Order to RAW")
 
-# Upload file List Order (baik XLSX maupun CSV)
-uploaded_file = st.file_uploader("Upload file List Order", type=["xlsx", "csv"])
+# Fungsi untuk memuat master data awal
+@st.cache_data
+def load_initial_master():
+    try:
+        return pd.read_excel("https://raw.githubusercontent.com/keiichiro05/LO_converter/main/master.xlsx", engine='openpyxl')
+    except:
+        # Jika gagal, buat DataFrame kosong dengan kolom yang diperlukan
+        return pd.DataFrame(columns=[
+            'GROUP', 'GROUP TO BE', 'SKU-LIST ORDER', 
+            'SKU TO BE', 'ship_to', 'CUST_NAME'
+        ])
 
-if uploaded_file:
-    # Cek apakah nama file mengandung 'List Order'
-    if "List Order" in uploaded_file.name:
-        # Load master dari GitHub raw
-        master_df = pd.read_excel("https://raw.githubusercontent.com/keiichiro05/LO_converter/main/master.xlsx", engine='openpyxl')
+# Inisialisasi master data di session state jika belum ada
+if 'master_data' not in st.session_state:
+    st.session_state.master_data = load_initial_master()
 
-        group_map = dict(zip(master_df['GROUP'], master_df['GROUP TO BE']))
-        sku_map = dict(zip(master_df['SKU-LIST ORDER'], master_df['SKU TO BE']))
-        lka_map = dict(zip(master_df['ship_to'], master_df['CUST_NAME']))
+# Section untuk edit master data
+with st.expander("✏️ Edit Master Data", expanded=False):
+    st.write("Edit master data langsung di tabel berikut:")
+    
+    # Editor data
+    edited_master = st.data_editor(
+        st.session_state.master_data,
+        num_rows="dynamic",  # Memungkinkan menambah/hapus baris
+        use_container_width=True,
+        height=400
+    )
+    
+    # Tombol untuk menyimpan perubahan
+    if st.button("💾 Save Master Data Changes"):
+        st.session_state.master_data = edited_master
+        st.success("Master data updated successfully!")
+        
+    # Tombol untuk menambah kolom jika diperlukan
+    if st.button("➕ Add New Column"):
+        new_col_name = st.text_input("New column name")
+        if new_col_name:
+            st.session_state.master_data[new_col_name] = ""
+            st.rerun()
+
+# Gunakan master data dari session state
+master_df = st.session_state.master_data
+
+if master_df.empty:
+    st.warning("Master data is empty. Please add data to continue.")
+    st.stop()
+
+# Lanjutkan dengan pemetaan data seperti sebelumnya
+group_map = dict(zip(master_df['GROUP'], master_df['GROUP TO BE']))
+sku_map = dict(zip(master_df['SKU-LIST ORDER'], master_df['SKU TO BE']))
+lka_map = dict(zip(master_df['ship_to'], master_df['CUST_NAME']))
+
 
         # Tentukan apakah file yang diupload Excel atau CSV
         if uploaded_file.name.endswith('.xlsx'):
