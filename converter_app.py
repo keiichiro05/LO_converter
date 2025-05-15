@@ -6,7 +6,12 @@ from io import BytesIO
 @st.cache_data
 def load_initial_master():
     try:
-        return pd.read_excel("https://raw.githubusercontent.com/keiichiro05/LO_converter/main/master.xlsx", engine='openpyxl')
+        master = pd.read_excel("https://raw.githubusercontent.com/keiichiro05/LO_converter/main/master.xlsx", engine='openpyxl')
+        # Ensure no duplicates in key columns
+        master = master.drop_duplicates(subset=['GROUP'], keep='last')
+        master = master.drop_duplicates(subset=['SKU-LIST ORDER'], keep='last')
+        master = master.drop_duplicates(subset=['ship_to'], keep='last')
+        return master
     except:
         # Fallback empty DataFrame with required columns
         return pd.DataFrame(columns=[
@@ -38,6 +43,10 @@ with st.expander("✏️ Edit Master Data", expanded=False):
     
     with col1:
         if st.button("💾 Save Changes", help="Save changes to master data for this session"):
+            # Ensure no duplicates in key columns before saving
+            edited_master = edited_master.drop_duplicates(subset=['GROUP'], keep='last')
+            edited_master = edited_master.drop_duplicates(subset=['SKU-LIST ORDER'], keep='last')
+            edited_master = edited_master.drop_duplicates(subset=['ship_to'], keep='last')
             st.session_state.master_data = edited_master
             st.success("Master data updated successfully!")
             
@@ -63,10 +72,10 @@ if not all(col in master_df.columns for col in required_columns):
     st.error("Master data is missing required columns! Please edit the master data.")
     st.stop()
 
-# Create mapping dictionaries
-group_map = dict(zip(master_df['GROUP'], master_df['GROUP TO BE']))
-sku_map = dict(zip(master_df['SKU-LIST ORDER'], master_df['SKU TO BE']))
-lka_map = dict(zip(master_df['ship_to'], master_df['CUST_NAME']))
+# Create mapping dictionaries with duplicate handling
+group_map = master_df.drop_duplicates('GROUP').set_index('GROUP')['GROUP TO BE'].to_dict()
+sku_map = master_df.drop_duplicates('SKU-LIST ORDER').set_index('SKU-LIST ORDER')['SKU TO BE'].to_dict()
+lka_map = master_df.drop_duplicates('ship_to').set_index('ship_to')['CUST_NAME'].to_dict()
 
 # File Upload and Conversion Section
 uploaded_file = st.file_uploader("Upload file List Order", type=["xlsx", "csv"])
@@ -86,17 +95,20 @@ if uploaded_file:
         
         # Validate required columns in the uploaded file
         required_upload_columns = ['po_creation_Date', 'group', 'material_desc', 'ship_to', 'region_ops', 
-                                  'dc_name_sl_forecast', 'po_qty_cap', 'do_qty_nett', 'reject_code', 'sap_rejection']
+                                'dc_name_sl_forecast', 'po_qty_cap', 'do_qty_nett', 'reject_code', 'sap_rejection']
         
         missing_columns = [col for col in required_upload_columns if col not in target.columns]
         if missing_columns:
             st.error(f"❌ File tidak memiliki kolom yang dibutuhkan: {', '.join(missing_columns)}")
             st.stop()
         
-        # Apply mappings
+        # Apply mappings with fillna for unmatched values
         target['GROUP TO BE'] = target['group'].map(group_map)
-        target['SKU TO BE'] = target['material_desc'].map(sku_map)
-        target.loc[target['group'] == 'LKA', 'GROUP TO BE'] = target.loc[target['group'] == 'LKA', 'ship_to'].map(lka_map)
+        target['SKU TO BE'] = target['material_desc'].map(sku_map).fillna(target['material_desc'])
+        
+        # Handle LKA group separately
+        lka_mask = target['group'] == 'LKA'
+        target.loc[lka_mask, 'GROUP TO BE'] = target.loc[lka_mask, 'ship_to'].map(lka_map).fillna(target.loc[lka_mask, 'ship_to'])
 
         # Convert dates
         month_map = {
@@ -110,6 +122,8 @@ if uploaded_file:
 
         # Classify SKU groups
         def classify_group_sku(desc):
+            if pd.isna(desc):
+                return 'sps'
             desc_lower = str(desc).lower()
             if 'mizone' in desc_lower:
                 return 'Mizone'
@@ -175,3 +189,4 @@ if uploaded_file:
 
     except Exception as e:
         st.error(f"❌ Error processing file: {str(e)}")
+        st.error("Please check your master data for duplicate values in key columns (GROUP, SKU-LIST ORDER, ship_to)")
