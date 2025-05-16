@@ -1,192 +1,185 @@
 import pandas as pd
 import streamlit as st
-from io import BytesIO
+# from datetime import datetime  # Removed unused import
+import io
 
-# Function to load initial master data
+# Fungsi untuk memuat master data
 @st.cache_data
-def load_initial_master():
+def load_master_data(uploaded_file):
     try:
-        master = pd.read_excel("https://raw.githubusercontent.com/keiichiro05/LO_converter/main/master.xlsx", engine='openpyxl')
-        # Ensure no duplicates in key columns
-        master = master.drop_duplicates(subset=['GROUP'], keep='last')
-        master = master.drop_duplicates(subset=['SKU-LIST ORDER'], keep='last')
-        master = master.drop_duplicates(subset=['ship_to'], keep='last')
-        return master
-    except:
-        # Fallback empty DataFrame with required columns
-        return pd.DataFrame(columns=[
-            'GROUP', 'GROUP TO BE', 'SKU-LIST ORDER', 
-            'SKU TO BE', 'ship_to', 'CUST_NAME'
-        ])
-
-# Initialize session state for master data
-if 'master_data' not in st.session_state:
-    st.session_state.master_data = load_initial_master()
-
-# App title
-st.title("Excel/CSV File Converter for List Order to RAW")
-
-# Master Data Editor Section
-with st.expander("✏️ Edit Master Data", expanded=False):
-    st.write("Edit the master mapping table directly below:")
-    
-    # Data editor widget
-    edited_master = st.data_editor(
-        st.session_state.master_data,
-        num_rows="dynamic",
-        use_container_width=True,
-        height=400,
-        key="master_editor"
-    )
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        if st.button("💾 Save Changes", help="Save changes to master data for this session"):
-            # Ensure no duplicates in key columns before saving
-            edited_master = edited_master.drop_duplicates(subset=['GROUP'], keep='last')
-            edited_master = edited_master.drop_duplicates(subset=['SKU-LIST ORDER'], keep='last')
-            edited_master = edited_master.drop_duplicates(subset=['ship_to'], keep='last')
-            st.session_state.master_data = edited_master
-            st.success("Master data updated successfully!")
-            
-    with col2:
-        if st.button("🔄 Reset Changes", help="Revert to last saved version"):
-            st.rerun()
-    
-    # Add new column feature
-    new_col_name = st.text_input("Add new column:")
-    if st.button("➕ Add Column") and new_col_name:
-        if new_col_name not in st.session_state.master_data.columns:
-            st.session_state.master_data[new_col_name] = ""
-            st.rerun()
-        else:
-            st.warning(f"Column '{new_col_name}' already exists!")
-
-# Get the master data from session state
-master_df = st.session_state.master_data
-
-# Check if master data has required columns
-required_columns = ['GROUP', 'GROUP TO BE', 'SKU-LIST ORDER', 'SKU TO BE', 'ship_to', 'CUST_NAME']
-if not all(col in master_df.columns for col in required_columns):
-    st.error("Master data is missing required columns! Please edit the master data.")
-    st.stop()
-
-# Create mapping dictionaries with duplicate handling
-group_map = master_df.drop_duplicates('GROUP').set_index('GROUP')['GROUP TO BE'].to_dict()
-sku_map = master_df.drop_duplicates('SKU-LIST ORDER').set_index('SKU-LIST ORDER')['SKU TO BE'].to_dict()
-lka_map = master_df.drop_duplicates('ship_to').set_index('ship_to')['CUST_NAME'].to_dict()
-
-# File Upload and Conversion Section
-uploaded_file = st.file_uploader("Upload file List Order", type=["xlsx", "csv"])
-
-if uploaded_file:
-    # Check if filename contains 'List Order'
-    if "List Order" not in uploaded_file.name:
-        st.error("❌ Nama file harus mengandung 'List Order'.")
-        st.stop()
-    
-    try:
-        # Read the uploaded file
         if uploaded_file.name.endswith('.xlsx'):
-            target = pd.read_excel(uploaded_file)
+            df = pd.read_excel(uploaded_file)
         elif uploaded_file.name.endswith('.csv'):
-            target = pd.read_csv(uploaded_file)
-        
-        # Validate required columns in the uploaded file
-        required_upload_columns = ['po_creation_Date', 'group', 'material_desc', 'ship_to', 'region_ops', 
-                                'dc_name_sl_forecast', 'po_qty_cap', 'do_qty_nett', 'reject_code', 'sap_rejection']
-        
-        missing_columns = [col for col in required_upload_columns if col not in target.columns]
-        if missing_columns:
-            st.error(f"❌ File tidak memiliki kolom yang dibutuhkan: {', '.join(missing_columns)}")
-            st.stop()
-        
-        # Apply mappings with fillna for unmatched values
-        target['GROUP TO BE'] = target['group'].map(group_map)
-        target['SKU TO BE'] = target['material_desc'].map(sku_map).fillna(target['material_desc'])
-        
-        # Handle LKA group separately
-        lka_mask = target['group'] == 'LKA'
-        target.loc[lka_mask, 'GROUP TO BE'] = target.loc[lka_mask, 'ship_to'].map(lka_map).fillna(target.loc[lka_mask, 'ship_to'])
+            df = pd.read_csv(uploaded_file)
+        else:
+            st.error("❌ Format file master tidak didukung. Harus .xlsx atau .csv")
+            return None
 
-        # Convert dates
-        month_map = {
-            'January': 'JAN', 'February': 'FEB', 'March': 'MAR',
-            'April': 'APR', 'May': 'MAY', 'June': 'JUN',
-            'July': 'JUL', 'August': 'AUG', 'September': 'SEP',
-            'October': 'OCT', 'November': 'NOV', 'December': 'DEC'
+        # Normalisasi kolom
+        df.columns = df.columns.str.strip().str.upper()
+        required_columns = {'GROUP', 'GROUP TO BE', 'SKU', 'SKU TO BE'}
+
+        customer_cols = {'CUSTOMER_NAME ', 'CUSTOMER_NAME TO BE'}
+        existing_customer_cols = customer_cols & set(df.columns)
+
+        if not required_columns.issubset(df.columns) or not existing_customer_cols:
+            missing = required_columns - set(df.columns)
+            if not existing_customer_cols:
+                missing.add("CUSTOMER_NAME  or CUSTOMER_NAME TO BE")
+            st.error(f"❌ Kolom berikut tidak ditemukan di master file: {missing}")
+            return None
+
+        return df
+    except Exception as e:
+        st.error(f"❌ Gagal memuat master file: {str(e)}")
+        return None
+
+# Fungsi untuk memuat list order
+@st.cache_data
+def load_list_order_data(uploaded_file):
+    try:
+        if uploaded_file.name.endswith('.xlsx'):
+            df = pd.read_excel(uploaded_file)
+        elif uploaded_file.name.endswith('.csv'):
+            df = pd.read_csv(uploaded_file)
+        else:
+            st.error("❌ Format file List Order tidak didukung. Harus .xlsx atau .csv")
+            return None
+
+        df.columns = df.columns.str.strip().str.lower()
+        required_columns = {
+            'po_creation_date', 'group', 'segmen_name', 'cust_name', 'material_desc',
+            'grouping_sku', 'region_ops', 'dc_name_sl_forecast',
+            'po_qty_cap', 'do_qty_nett', 'reject_code', 'sap_rejection'
         }
-        target['MONTH'] = pd.to_datetime(target['po_creation_Date']).dt.strftime('%B').map(month_map)
-        target['YEAR'] = pd.to_datetime(target['po_creation_Date']).dt.year.astype(str)
 
-        # Classify SKU groups
-        def classify_group_sku(desc):
-            if pd.isna(desc):
-                return 'sps'
-            desc_lower = str(desc).lower()
-            if 'mizone' in desc_lower:
-                return 'Mizone'
-            elif 'vit' in desc_lower:
-                return 'VIT'
-            elif desc in [
-                '1500ML AQUA LOCAL MULTIPACK 1X6',
-                '750ML AQUA LOCAL 1X18',
-                '450ML AQUA KIDS 1X24',
-                '220ML AQUA CUBE MINI BOTTLE LOCAL 1X24'
-            ]:
-                return 'spec SKU'
-            elif desc == '1100ML AQUA LOCAL 1X12 BARCODE ON CAP':
-                return 'aqua life'
-            else:
-                return 'sps'
+        if not required_columns.issubset(df.columns):
+            missing = required_columns - set(df.columns)
+            st.error(f"❌ Kolom berikut tidak ditemukan di List Order: {missing}")
+            return None
 
-        target['Group SKU'] = target['material_desc'].apply(classify_group_sku)
+        return df
+    except Exception as e:
+        st.error(f"❌ Gagal memuat List Order: {str(e)}")
+        return None
 
-        # Create output DataFrame
-        output = pd.DataFrame()
-        output['dummy'] = target['YEAR'] + ' ' + target['MONTH'] + ' ' + target['SKU TO BE'].astype(str)
-        output['YEAR'] = target['YEAR']
-        output['MONTH'] = target['MONTH']
-        output['ACCOUNT'] = target['GROUP TO BE']
-        output['GROUP ACCOUNT'] = target['GROUP TO BE']
-        output['SKU'] = target['SKU TO BE']
-        output['material desc'] = target['material_desc']
-        output['Group SKU'] = target['Group SKU']
-        output['Region'] = target['region_ops']
-        output['DC'] = target['dc_name_sl_forecast']
-        output['PO'] = target['po_qty_cap']
-        output['DO'] = target['do_qty_nett']
-        output['reject_code'] = target['reject_code']
-        output['sap_rejection'] = target['sap_rejection']
+# Fungsi untuk konversi nama bulan
+def convert_month(full_month):
+    if pd.isna(full_month):
+        return ''
+    month_map = {
+        'January': 'JAN', 'February': 'FEB', 'March': 'MAR',
+        'April': 'APR', 'May': 'MAY', 'June': 'JUN',
+        'July': 'JUL', 'August': 'AUG', 'September': 'SEP',
+        'October': 'OCT', 'November': 'NOV', 'December': 'DEC'
+    }
+    return month_map.get(full_month, str(full_month)[:3].upper())
 
-        # Prepare file for download
-        file_extension = uploaded_file.name.split('.')[-1]
-        output_buffer = BytesIO()
+# Fungsi untuk mapping GROUP ACCOUNT
+def get_group_account(group_value, cust_name, customer_mapping):
+    if str(group_value).strip().upper() == 'LKA':
+        key = str(cust_name).strip().lower()
+        return customer_mapping.get(key, 'UNKNOWN')
+    else:
+        return group_value
 
-        if file_extension == "xlsx":
-            output.to_excel(output_buffer, index=False)
-        elif file_extension == "csv":
-            output.to_csv(output_buffer, index=False)
+# Fungsi utama proses data
+def process_data(list_order_df, master_df):
+    output = pd.DataFrame()
 
-        output_buffer.seek(0)
+    try:
+        list_order_df['po_creation_date'] = pd.to_datetime(
+            list_order_df['po_creation_date'], format='%A, %B %d, %Y', errors='coerce'
+        )
 
-        # Show success and download button
-        st.success("✅ Konversi berhasil!")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.download_button(
-                label="⬇️ Download Hasil",
-                data=output_buffer,
-                file_name=f"RAW.{file_extension}",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" if file_extension == "xlsx" else "text/csv"
-            )
-        
-        with col2:
-            if st.button("👀 Preview Output"):
-                st.dataframe(output.head(), use_container_width=True)
+        output['YEAR'] = list_order_df['po_creation_date'].dt.year.fillna(0).astype(int)
+        output['MONTH'] = list_order_df['po_creation_date'].dt.strftime('%B').apply(convert_month)
+
+        # group_map is not used, so we skip it
+        sku_map = master_df.drop_duplicates('SKU').set_index('SKU')['SKU TO BE'].to_dict()
+
+        # Siapkan mapping customer
+        customer_name_key = 'CUSTOMER_NAME ' if 'CUSTOMER_NAME ' in master_df.columns else 'CUSTOMER_NAME'
+        customer_name_map = {
+            str(row[customer_name_key]).strip().lower(): str(row['CUSTOMER_NAME TO BE']).strip()
+            for _, row in master_df.iterrows()
+            if pd.notna(row.get(customer_name_key)) and pd.notna(row.get('CUSTOMER_NAME TO BE'))
+        }
+
+        def map_cust_name_to_be(row):
+            if str(row['group']).strip().upper() == 'LKA':
+                key = str(row['cust_name']).strip().lower()
+                return customer_name_map.get(key, 'UNKNOWN')
+            return row['cust_name']
+
+
+
+        output['ACCOUNT'] = list_order_df['group']
+        # Define customer_mapping for get_group_account
+        customer_mapping = customer_name_map
+        output['GROUP ACCOUNT'] = list_order_df.apply(
+            lambda x: get_group_account(x['group'], x['cust_name'], customer_mapping), axis=1
+        )
+
+        output['SKU'] = list_order_df['material_desc'].map(sku_map).fillna('UNKNOWN')
+        output['material desc'] = list_order_df['material_desc']
+        output['Group SKU'] = list_order_df['grouping_sku']
+        output['Region'] = list_order_df['region_ops']
+        output['DC'] = list_order_df['dc_name_sl_forecast']
+        output['PO'] = list_order_df['po_qty_cap']
+        output['DO'] = list_order_df['do_qty_nett']
+        output['reject_code'] = list_order_df['reject_code']
+        output['sap_rejection'] = list_order_df['sap_rejection']
 
     except Exception as e:
-        st.error(f"❌ Error processing file: {str(e)}")
-        st.error("Please check your master data for duplicate values in key columns (GROUP, SKU-LIST ORDER, ship_to)")
+        st.error(f"❌ Error saat memproses data: {str(e)}")
+        return pd.DataFrame()
+
+    return output
+
+# ========== Streamlit UI ==========
+
+st.set_page_config(page_title="Excel Converter", layout="wide")
+st.title("📊 Excel Converter - List Order to RAW")
+
+with st.sidebar:
+    st.header("⚙️ Upload Master Data")
+    master_file = st.file_uploader("Upload master.xlsx atau master.csv", type=["xlsx", "csv"])
+
+if master_file:
+    master_df = load_master_data(master_file)
+
+    if master_df is not None:
+        st.success("✅ Master file berhasil dimuat.")
+        st.header("📤 Upload List Order")
+        list_order_file = st.file_uploader("Upload file yang mengandung 'List Order'", type=["xlsx", "csv"])
+
+        if list_order_file:
+            if 'List Order' in list_order_file.name:
+                list_order_df = load_list_order_data(list_order_file)
+
+                if list_order_df is not None:
+                    with st.spinner("🔄 Sedang memproses data..."):
+                        result_df = process_data(list_order_df, master_df)
+
+                    if not result_df.empty:
+                        st.balloons()
+                        st.subheader("📑 Preview Hasil Konversi")
+                        st.dataframe(result_df.head())
+
+                        output = io.BytesIO()
+                        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                            result_df.to_excel(writer, index=False, sheet_name='RAW')
+
+                        st.download_button(
+                            label="⬇️ Download File RAW.xlsx",
+                            data=output.getvalue(),
+                            file_name="RAW.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        )
+                    else:
+                        st.warning("⚠️ Tidak ada data yang berhasil diproses.")
+            else:
+                st.error("❌ Nama file harus mengandung 'List Order'.")
+else:
+    st.info("📂 Silakan upload master.xlsx atau master.csv terlebih dahulu.")
