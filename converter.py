@@ -1,6 +1,5 @@
 import pandas as pd
 import streamlit as st
-# from datetime import datetime  # Removed unused import
 import io
 
 # Fungsi untuk memuat master data
@@ -92,13 +91,16 @@ def process_data(list_order_df, master_df):
             list_order_df['po_creation_date'], format='%A, %B %d, %Y', errors='coerce'
         )
 
+        # Perbaiki material_desc spesifik
+        list_order_df['material_desc'] = list_order_df['material_desc'].str.replace("''", "'", regex=False)
+
         output['YEAR'] = list_order_df['po_creation_date'].dt.year.fillna(0).astype(int)
         output['MONTH'] = list_order_df['po_creation_date'].dt.strftime('%B').apply(convert_month)
 
-        # group_map is not used, so we skip it
+        # Mapping SKU
         sku_map = master_df.drop_duplicates('SKU').set_index('SKU')['SKU TO BE'].to_dict()
 
-        # Siapkan mapping customer
+        # Mapping nama customer
         customer_name_key = 'CUSTOMER_NAME ' if 'CUSTOMER_NAME ' in master_df.columns else 'CUSTOMER_NAME'
         customer_name_map = {
             str(row[customer_name_key]).strip().lower(): str(row['CUSTOMER_NAME TO BE']).strip()
@@ -106,22 +108,23 @@ def process_data(list_order_df, master_df):
             if pd.notna(row.get(customer_name_key)) and pd.notna(row.get('CUSTOMER_NAME TO BE'))
         }
 
-        def map_cust_name_to_be(row):
-            if str(row['group']).strip().upper() == 'LKA':
-                key = str(row['cust_name']).strip().lower()
-                return customer_name_map.get(key, 'UNKNOWN')
-            return row['cust_name']
-
-
-
         output['ACCOUNT'] = list_order_df['group']
-        # Define customer_mapping for get_group_account
         customer_mapping = customer_name_map
         output['GROUP ACCOUNT'] = list_order_df.apply(
             lambda x: get_group_account(x['group'], x['cust_name'], customer_mapping), axis=1
         )
 
-        output['SKU'] = list_order_df['material_desc'].map(sku_map).fillna('UNKNOWN')
+        # SKU to be logic with exception
+        def map_sku(row):
+            material = row['material_desc']
+            sku_to_be = sku_map.get(material, 'UNKNOWN')
+
+            if material == '5 GALLON AQUA LOCAL' and (row['group'].upper() == 'IGR' or row['GROUP ACCOUNT'].upper() == 'IGR'):
+                return 'AQUA JUGS 19L / AQUA AIR MINERAL (BKL) GLN 19L'
+            return sku_to_be
+
+        output['SKU'] = list_order_df.assign(**output).apply(map_sku, axis=1)
+
         output['material desc'] = list_order_df['material_desc']
         output['Group SKU'] = list_order_df['grouping_sku']
         output['Region'] = list_order_df['region_ops']
