@@ -143,7 +143,7 @@ def process_data(list_order_df, master_df):
 # ========== Streamlit UI ==========
 
 st.set_page_config(page_title="Excel Converter", layout="wide")
-st.title("📊     Connverter List Order")
+st.title("📊 Converter List Order")
 
 with st.sidebar:
     st.header("⚙️ Upload Master Data")
